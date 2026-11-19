@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer } from "@react-three/drei";
@@ -13,6 +13,7 @@ type Props = {
   relief?: number;
   depth?: number;
   scratches?: number;
+  grit?: number;
   seed?: number;
   className?: string;
 };
@@ -89,7 +90,17 @@ function toCanvas(data: Uint8ClampedArray, w: number, h: number) {
   return c;
 }
 
-function buildPlate(text: string, W: number, H: number, seed: number, irr: number, scratchAmt: number, relief: number) {
+function buildPlate(
+  text: string,
+  W: number,
+  H: number,
+  seed: number,
+  irr: number,
+  scratchAmt: number,
+  relief: number,
+  grit: number,
+  family: string
+) {
   const N = W * H;
   const { fbm } = makeNoise(seed);
   const rand = mulberry32(seed * 97 + 13);
@@ -103,12 +114,11 @@ function buildPlate(text: string, W: number, H: number, seed: number, irr: numbe
   tctx.textBaseline = "middle";
   tctx.fillStyle = "#ffffff";
   tctx.shadowColor = "#ffffff";
-  const family = '"Helvetica Neue", Helvetica, Arial, sans-serif';
   let px = H * 0.3;
-  tctx.font = `800 ${px}px ${family}`;
+  tctx.font = `700 ${px}px ${family}`;
   const mw = tctx.measureText(text).width || 1;
   px = Math.min((px * W * 0.5) / mw, H * 0.34);
-  tctx.font = `800 ${px}px ${family}`;
+  tctx.font = `700 ${px}px ${family}`;
   tctx.shadowBlur = px * 0.22;
   tctx.fillText(text, W / 2, H / 2);
   tctx.shadowBlur = px * 0.05;
@@ -118,7 +128,7 @@ function buildPlate(text: string, W: number, H: number, seed: number, irr: numbe
   const scv = makeCanvas(W, H);
   const sctx = scv.getContext("2d")!;
   sctx.lineCap = "round";
-  const count = Math.round(700 * scratchAmt);
+  const count = Math.round(500 * scratchAmt * grit);
   for (let i = 0; i < count; i++) {
     const x0 = rand() * W;
     const y0 = rand() * H;
@@ -127,8 +137,8 @@ function buildPlate(text: string, W: number, H: number, seed: number, irr: numbe
     const bend = (rand() - 0.5) * 24;
     const x1 = x0 + Math.cos(ang) * len;
     const y1 = y0 + Math.sin(ang) * len;
-    sctx.strokeStyle = `rgba(255,255,255,${0.2 + rand() * 0.7})`;
-    sctx.lineWidth = 0.5 + rand() * 1.0;
+    sctx.strokeStyle = `rgba(255,255,255,${0.1 + rand() * 0.4})`;
+    sctx.lineWidth = 0.5 + rand() * 0.8;
     sctx.beginPath();
     sctx.moveTo(x0, y0);
     sctx.quadraticCurveTo((x0 + x1) / 2 - Math.sin(ang) * bend, (y0 + y1) / 2 + Math.cos(ang) * bend, x1, y1);
@@ -183,27 +193,27 @@ function buildPlate(text: string, W: number, H: number, seed: number, irr: numbe
 
       const h = Math.max(0, 0.5 * rim - 0.2 * s1 + 0.12 * ring - 0.17 * s3 + lump);
 
-      const tsx = Math.min(W - 1, Math.max(0, Math.round(x + (fbm(x / 40 + 60, y / 40 + 40, 2) - 0.5) * 9)));
-      const tsy = Math.min(H - 1, Math.max(0, Math.round(y + (fbm(x / 40 + 10, y / 40 + 90, 2) - 0.5) * 9)));
+      const tsx = Math.min(W - 1, Math.max(0, Math.round(x + (fbm(x / 40 + 60, y / 40 + 40, 2) - 0.5) * 5)));
+      const tsy = Math.min(H - 1, Math.max(0, Math.round(y + (fbm(x / 40 + 10, y / 40 + 90, 2) - 0.5) * 5)));
       const ta = td[(tsy * W + tsx) * 4 + 3] / 255;
 
       const base = h + ta * 0.3;
       hb[i] = base;
 
-      const pit = fbm(x / 26 + 5, y / 26 + 9, 3) - 0.5;
-      const mott = fbm(x / 110 + 1, y / 110 + 2, 3);
+      const pit = fbm(x / 45 + 5, y / 45 + 9, 2) - 0.5;
+      const mott = fbm(x / 160 + 1, y / 160 + 2, 2);
       const s = sd[i * 4 + 3] / 255;
-      const grain = (rand() - 0.5) * 0.008;
-      hf[i] = base + pit * 0.1 * s3 + grain - s * 0.03;
+      const grain = (rand() - 0.5) * 0.004 * grit;
+      hf[i] = base + pit * 0.06 * s3 * grit + grain - s * 0.02;
 
       const hn = Math.min(1.15, base / 0.55);
-      const vv = clamp((0.3 + 0.62 * hn) * (0.72 + 0.56 * mott) + s * 0.3);
+      const vv = clamp((0.3 + 0.62 * hn) * (0.84 + 0.32 * mott) + s * 0.18);
       const k = i * 4;
       colD[k] = vv * 255 * 0.97;
       colD[k + 1] = vv * 255 * 0.985;
       colD[k + 2] = vv * 255;
 
-      const rr = clamp(0.16 + 0.4 * (1 - Math.min(hn, 1)) + s * 0.35 + pit * 0.3, 0.1, 0.85);
+      const rr = clamp(0.22 + 0.35 * (1 - Math.min(hn, 1)) + s * 0.2 + pit * 0.1 * grit, 0.12, 0.7);
       rghD[k] = rghD[k + 1] = rghD[k + 2] = rr * 255;
 
       const a = clamp(e / 0.006) * 255;
@@ -211,13 +221,13 @@ function buildPlate(text: string, W: number, H: number, seed: number, irr: numbe
     }
   }
 
-  const strength = relief * 50;
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
+  const strength = relief * 30;
+  for (let y = 2; y < H - 2; y++) {
+    for (let x = 2; x < W - 2; x++) {
       const i = y * W + x;
       if (alpD[i * 4] === 0) continue;
-      const dx = hf[i + 1] - hf[i - 1];
-      const dy = hf[i + W] - hf[i - W];
+      const dx = hf[i + 2] - hf[i - 2];
+      const dy = hf[i + 2 * W] - hf[i - 2 * W];
       const nx = -dx * strength;
       const ny = dy * strength;
       const l = Math.hypot(nx, ny, 1);
@@ -237,7 +247,18 @@ function buildPlate(text: string, W: number, H: number, seed: number, irr: numbe
   };
 }
 
-function Plate({ text, width, height, relief, depth, irregular, scratches, seed }: Required<Omit<Props, "className">>) {
+function Plate({
+  text,
+  width,
+  height,
+  relief,
+  depth,
+  irregular,
+  scratches,
+  grit,
+  seed,
+  family,
+}: Required<Omit<Props, "className">> & { family: string }) {
   const group = useRef<THREE.Group>(null);
   const light = useRef<THREE.PointLight>(null);
   const { viewport } = useThree();
@@ -246,8 +267,8 @@ function Plate({ text, width, height, relief, depth, irregular, scratches, seed 
   const H = Math.round((TEX_W * height) / width);
 
   const built = useMemo(
-    () => buildPlate(text, W, H, seed, irregular, scratches, relief),
-    [text, W, H, seed, irregular, scratches, relief]
+    () => buildPlate(text, W, H, seed, irregular, scratches, relief, grit, family),
+    [text, W, H, seed, irregular, scratches, relief, grit, family]
   );
 
   const tex = useMemo(() => {
@@ -335,9 +356,24 @@ export default function MetalPlate3D({
   relief = 1,
   depth = 0.5,
   scratches = 1,
+  grit = 0.35,
   seed = 7,
   className = "h-[600px] w-full",
 }: Props) {
+  const [family, setFamily] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const fam = getComputedStyle(document.body).fontFamily;
+    const done = () => {
+      if (alive) setFamily(`${fam}, Arial, sans-serif`);
+    };
+    document.fonts.load(`700 64px ${fam}`).then(done, done);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <div className={className}>
       <Canvas camera={{ position: [0, 0, 7], fov: 35 }} dpr={[1, 2]} gl={{ antialias: true }}>
@@ -349,16 +385,20 @@ export default function MetalPlate3D({
           <Lightformer form="rect" intensity={4} position={[0, 9, 2]} scale={[14, 1.5, 1]} />
           <Lightformer form="circle" intensity={6} position={[3, 3, 6]} scale={2} />
         </Environment>
-        <Plate
-          text={text}
-          width={width}
-          height={height}
-          relief={relief}
-          depth={depth}
-          irregular={irregular}
-          scratches={scratches}
-          seed={seed}
-        />
+        {family && (
+          <Plate
+            text={text}
+            width={width}
+            height={height}
+            relief={relief}
+            depth={depth}
+            irregular={irregular}
+            scratches={scratches}
+            grit={grit}
+            seed={seed}
+            family={family}
+          />
+        )}
       </Canvas>
     </div>
   );

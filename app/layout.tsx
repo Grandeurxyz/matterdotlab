@@ -1,16 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Hanken_Grotesk } from "next/font/google";
+import { Inter_Tight } from "next/font/google";
 import "./globals.css";
 
-const display = Hanken_Grotesk({
+const inter = Inter_Tight({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Studio",
-  description: "Experimental design studio.",
+  title: "ByGrandeur",
+  description: "An independent creative studio making things at the intersection of art, design and code.",
 };
 
 export const viewport: Viewport = {
@@ -22,8 +22,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={display.variable}>
-      <body className="min-h-screen bg-black font-[family-name:var(--font-display)] text-neutral-200 antialiased">
+    <html lang="en" className={`${inter.variable} ${inter.className}`}>
+      <body className="min-h-screen bg-black text-neutral-200 antialiased">
         {children}
       </body>
     </html>
