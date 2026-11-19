@@ -9,16 +9,24 @@ type Props = {
   text: string;
   width?: number;
   height?: number;
-  emboss?: "raised" | "pressed";
-  bumpScale?: number;
-  textSize?: number;
-  condense?: number;
+  irregular?: number;
+  relief?: number;
+  depth?: number;
   scratches?: number;
   seed?: number;
   className?: string;
 };
 
-const TEX_W = 2048;
+const TEX_W = 1600;
+
+function clamp(x: number, a = 0, b = 1) {
+  return x < a ? a : x > b ? b : x;
+}
+
+function smooth(a: number, b: number, x: number) {
+  const t = clamp((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+}
 
 function mulberry32(a: number) {
   return () => {
@@ -30,6 +38,41 @@ function mulberry32(a: number) {
   };
 }
 
+function makeNoise(seed: number) {
+  const hash = (ix: number, iy: number) => {
+    let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed, 1442695041)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+  const n = (x: number, y: number) => {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    const a = hash(ix, iy);
+    const b = hash(ix + 1, iy);
+    const c = hash(ix, iy + 1);
+    const d = hash(ix + 1, iy + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  };
+  const fbm = (x: number, y: number, oct: number) => {
+    let s = 0;
+    let amp = 0.5;
+    let f = 1;
+    let norm = 0;
+    for (let i = 0; i < oct; i++) {
+      s += n(x * f, y * f) * amp;
+      norm += amp;
+      amp *= 0.5;
+      f *= 2;
+    }
+    return s / norm;
+  };
+  return { fbm };
+}
+
 function makeCanvas(w: number, h: number) {
   const c = document.createElement("canvas");
   c.width = w;
@@ -37,174 +80,164 @@ function makeCanvas(w: number, h: number) {
   return c;
 }
 
-function addNoise(ctx: CanvasRenderingContext2D, w: number, h: number, amp: number, rand: () => number) {
-  const img = ctx.getImageData(0, 0, w, h);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const n = (rand() - 0.85) * amp;
-    d[i] += n;
-    d[i + 1] += n;
-    d[i + 2] += n;
-  }
+function toCanvas(data: Uint8ClampedArray, w: number, h: number) {
+  const c = makeCanvas(w, h);
+  const ctx = c.getContext("2d")!;
+  const img = ctx.createImageData(w, h);
+  img.data.set(data);
   ctx.putImageData(img, 0, 0);
+  return c;
 }
 
-function blotches(ctx: CanvasRenderingContext2D, w: number, h: number, count: number, maxAlpha: number, rand: () => number) {
+function buildPlate(text: string, W: number, H: number, seed: number, irr: number, scratchAmt: number, relief: number) {
+  const N = W * H;
+  const { fbm } = makeNoise(seed);
+  const rand = mulberry32(seed * 97 + 13);
+  const ph1 = rand() * 6.283;
+  const ph2 = rand() * 6.283;
+  const ph3 = rand() * 6.283;
+
+  const tc = makeCanvas(W, H);
+  const tctx = tc.getContext("2d")!;
+  tctx.textAlign = "center";
+  tctx.textBaseline = "middle";
+  tctx.fillStyle = "#ffffff";
+  tctx.shadowColor = "#ffffff";
+  const family = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+  let px = H * 0.3;
+  tctx.font = `800 ${px}px ${family}`;
+  const mw = tctx.measureText(text).width || 1;
+  px = Math.min((px * W * 0.5) / mw, H * 0.34);
+  tctx.font = `800 ${px}px ${family}`;
+  tctx.shadowBlur = px * 0.22;
+  tctx.fillText(text, W / 2, H / 2);
+  tctx.shadowBlur = px * 0.05;
+  tctx.fillText(text, W / 2, H / 2);
+  const td = tctx.getImageData(0, 0, W, H).data;
+
+  const scv = makeCanvas(W, H);
+  const sctx = scv.getContext("2d")!;
+  sctx.lineCap = "round";
+  const count = Math.round(700 * scratchAmt);
   for (let i = 0; i < count; i++) {
-    const x = rand() * w;
-    const y = rand() * h;
-    const r = 120 + rand() * 420;
-    const c = rand() > 0.5 ? "255,255,255" : "0,0,0";
-    const a = maxAlpha * (0.3 + rand() * 0.7);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(${c},${a})`);
-    g.addColorStop(1, `rgba(${c},0)`);
-    ctx.fillStyle = g;
-    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    const x0 = rand() * W;
+    const y0 = rand() * H;
+    const ang = rand() * Math.PI;
+    const len = 8 + Math.pow(rand(), 3) * 380;
+    const bend = (rand() - 0.5) * 24;
+    const x1 = x0 + Math.cos(ang) * len;
+    const y1 = y0 + Math.sin(ang) * len;
+    sctx.strokeStyle = `rgba(255,255,255,${0.2 + rand() * 0.7})`;
+    sctx.lineWidth = 0.5 + rand() * 1.0;
+    sctx.beginPath();
+    sctx.moveTo(x0, y0);
+    sctx.quadraticCurveTo((x0 + x1) / 2 - Math.sin(ang) * bend, (y0 + y1) / 2 + Math.cos(ang) * bend, x1, y1);
+    sctx.stroke();
   }
-}
+  const sd = sctx.getImageData(0, 0, W, H).data;
 
-type Scratch = { x: number; y: number; angle: number; len: number; w: number; alpha: number; light: boolean; bend: number };
+  const hb = new Float32Array(N);
+  const hf = new Float32Array(N);
+  const colD = new Uint8ClampedArray(N * 4);
+  const rghD = new Uint8ClampedArray(N * 4);
+  const alpD = new Uint8ClampedArray(N * 4);
+  const nrmD = new Uint8ClampedArray(N * 4);
 
-function makeScratches(w: number, h: number, count: number, rand: () => number): Scratch[] {
-  const list: Scratch[] = [];
-  for (let i = 0; i < count; i++) {
-    list.push({
-      x: rand() * w,
-      y: rand() * h,
-      angle: rand() * Math.PI,
-      len: 10 + Math.pow(rand(), 3) * 520,
-      w: 0.4 + rand() * 1.1,
-      alpha: 0.08 + rand() * 0.35,
-      light: rand() > 0.45,
-      bend: (rand() - 0.5) * 30,
-    });
-  }
-  return list;
-}
-
-function drawScratches(ctx: CanvasRenderingContext2D, list: Scratch[], mode: "color" | "height" | "rough") {
-  ctx.lineCap = "round";
-  for (const s of list) {
-    const ex = s.x + Math.cos(s.angle) * s.len;
-    const ey = s.y + Math.sin(s.angle) * s.len;
-    const mx = (s.x + ex) / 2 - Math.sin(s.angle) * s.bend;
-    const my = (s.y + ey) / 2 + Math.cos(s.angle) * s.bend;
-    const col = mode === "rough" || s.light ? "255,255,255" : "0,0,0";
-    const a = mode === "color" ? (s.light ? s.alpha : s.alpha * 0.6) : s.alpha * 0.7;
-    ctx.strokeStyle = `rgba(${col},${a})`;
-    ctx.lineWidth = s.w;
-    ctx.beginPath();
-    ctx.moveTo(s.x, s.y);
-    ctx.quadraticCurveTo(mx, my, ex, ey);
-    ctx.stroke();
-  }
-}
-
-function buildBase(w: number, h: number, seed: number, amount: number) {
-  const rand = mulberry32(seed);
-  const color = makeCanvas(w, h);
-  const height = makeCanvas(w, h);
-  const rough = makeCanvas(w, h);
-  const cc = color.getContext("2d")!;
-  const hc = height.getContext("2d")!;
-  const rc = rough.getContext("2d")!;
-
-  cc.fillStyle = "#c3c5c8";
-  cc.fillRect(0, 0, w, h);
-  blotches(cc, w, h, 70, 0.1, rand);
-  addNoise(cc, w, h, 10, rand);
-
-  hc.fillStyle = "#808080";
-  hc.fillRect(0, 0, w, h);
-  blotches(hc, w, h, 40, 0.05, rand);
-  addNoise(hc, w, h, 8, rand);
-
-  rc.fillStyle = "#5a5a5a";
-  rc.fillRect(0, 0, w, h);
-  blotches(rc, w, h, 50, 0.12, rand);
-  addNoise(rc, w, h, 16, rand);
-
-  const list = makeScratches(w, h, Math.round(1400 * amount), rand);
-  drawScratches(cc, list, "color");
-  drawScratches(hc, list, "height");
-  drawScratches(rc, list, "rough");
-
-  for (let i = 0; i < 500; i++) {
-    cc.fillStyle = `rgba(255,255,255,${0.15 + rand() * 0.3})`;
-    cc.beginPath();
-    cc.arc(rand() * w, rand() * h, 0.5 + rand() * 1.2, 0, Math.PI * 2);
-    cc.fill();
+  for (let i = 0; i < N; i++) {
+    const k = i * 4;
+    colD[k + 3] = 255;
+    rghD[k] = rghD[k + 1] = rghD[k + 2] = 255;
+    rghD[k + 3] = 255;
+    alpD[k + 3] = 255;
+    nrmD[k] = 128;
+    nrmD[k + 1] = 128;
+    nrmD[k + 2] = 255;
+    nrmD[k + 3] = 255;
   }
 
-  return { color, height, rough };
-}
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const nx0 = (x - W * 0.5) / (W * 0.4);
+      const ny0 = (y - H * 0.5) / (H * 0.4);
+      const wx = nx0 + (fbm(x / 700 + 3.1, y / 700 + 7.7, 3) - 0.5) * 0.55 * irr;
+      const wy = ny0 + (fbm(x / 700 + 19.4, y / 700 + 1.3, 3) - 0.5) * 0.55 * irr;
+      const ang = Math.atan2(wy, wx);
+      const r = 1 + irr * (0.05 * Math.sin(2 * ang + ph1) + 0.045 * Math.sin(3 * ang + ph2) + 0.035 * Math.sin(5 * ang + ph3));
+      const d = Math.hypot(wx, wy) / r;
+      const e = 1 - d;
+      if (e <= 0) continue;
 
-function drawText(ctx: CanvasRenderingContext2D, text: string, w: number, h: number, size: number, condense: number, raised: boolean) {
-  const lines = text.toUpperCase().split("\n");
-  const px = h * size;
-  const lh = px * 1.08;
-  const start = -((lines.length - 1) * lh) / 2;
-  const col = raised ? "#ffffff" : "#000000";
-  ctx.save();
-  ctx.translate(w / 2, h / 2);
-  ctx.scale(condense, 1);
-  ctx.font = `700 ${px}px 'Arial Narrow','Helvetica Neue',Arial,sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = col;
-  ctx.shadowColor = col;
-  ctx.shadowBlur = px * 0.06;
-  lines.forEach((line, i) => ctx.fillText(line, 0, start + i * lh));
-  ctx.restore();
-}
+      const n1 = fbm(x / 380 + 11, y / 380 + 5, 2) - 0.5;
+      const n2 = fbm(x / 380 + 23, y / 380 + 17, 2) - 0.5;
+      const n3 = fbm(x / 380 + 41, y / 380 + 29, 2) - 0.5;
+      const b1 = 0.87 + n1 * 0.12 * irr;
+      const b2 = 0.79 + n2 * 0.12 * irr;
+      const b3 = 0.72 + n3 * 0.14 * irr;
 
-function makePlateGeometry(w: number, h: number) {
-  const r = 0.14;
-  const x = -w / 2;
-  const y = -h / 2;
-  const s = new THREE.Shape();
-  s.moveTo(x + r, y);
-  s.lineTo(x + w - r, y);
-  s.quadraticCurveTo(x + w, y, x + w, y + r);
-  s.lineTo(x + w, y + h - r);
-  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  s.lineTo(x + r, y + h);
-  s.quadraticCurveTo(x, y + h, x, y + h - r);
-  s.lineTo(x, y + r);
-  s.quadraticCurveTo(x, y, x + r, y);
+      const rim = Math.sqrt(1 - Math.pow(1 - clamp(e / 0.08), 2));
+      const s1 = smooth(b1 + 0.02, b1 - 0.02, d);
+      const ring = Math.exp(-Math.pow((d - b2) / 0.014, 2));
+      const s3 = smooth(b3 + 0.025, b3 - 0.025, d);
+      const lump = (fbm(x / 240 + 2, y / 240 + 8, 3) - 0.5) * 0.14 * rim;
 
-  const g = new THREE.ExtrudeGeometry(s, {
-    depth: 0.08,
-    bevelEnabled: true,
-    bevelThickness: 0.035,
-    bevelSize: 0.035,
-    bevelSegments: 5,
-    curveSegments: 16,
-  });
+      const h = Math.max(0, 0.5 * rim - 0.2 * s1 + 0.12 * ring - 0.17 * s3 + lump);
 
-  const pos = g.attributes.position;
-  const uv = g.attributes.uv;
-  const bw = w + 0.07;
-  const bh = h + 0.07;
-  for (let i = 0; i < pos.count; i++) {
-    uv.setXY(i, (pos.getX(i) + bw / 2) / bw, (pos.getY(i) + bh / 2) / bh);
+      const tsx = Math.min(W - 1, Math.max(0, Math.round(x + (fbm(x / 40 + 60, y / 40 + 40, 2) - 0.5) * 9)));
+      const tsy = Math.min(H - 1, Math.max(0, Math.round(y + (fbm(x / 40 + 10, y / 40 + 90, 2) - 0.5) * 9)));
+      const ta = td[(tsy * W + tsx) * 4 + 3] / 255;
+
+      const base = h + ta * 0.3;
+      hb[i] = base;
+
+      const pit = fbm(x / 26 + 5, y / 26 + 9, 3) - 0.5;
+      const mott = fbm(x / 110 + 1, y / 110 + 2, 3);
+      const s = sd[i * 4 + 3] / 255;
+      const grain = (rand() - 0.5) * 0.008;
+      hf[i] = base + pit * 0.1 * s3 + grain - s * 0.03;
+
+      const hn = Math.min(1.15, base / 0.55);
+      const vv = clamp((0.3 + 0.62 * hn) * (0.72 + 0.56 * mott) + s * 0.3);
+      const k = i * 4;
+      colD[k] = vv * 255 * 0.97;
+      colD[k + 1] = vv * 255 * 0.985;
+      colD[k + 2] = vv * 255;
+
+      const rr = clamp(0.16 + 0.4 * (1 - Math.min(hn, 1)) + s * 0.35 + pit * 0.3, 0.1, 0.85);
+      rghD[k] = rghD[k + 1] = rghD[k + 2] = rr * 255;
+
+      const a = clamp(e / 0.006) * 255;
+      alpD[k] = alpD[k + 1] = alpD[k + 2] = a;
+    }
   }
-  g.translate(0, 0, -0.04);
-  return g;
+
+  const strength = relief * 50;
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      if (alpD[i * 4] === 0) continue;
+      const dx = hf[i + 1] - hf[i - 1];
+      const dy = hf[i + W] - hf[i - W];
+      const nx = -dx * strength;
+      const ny = dy * strength;
+      const l = Math.hypot(nx, ny, 1);
+      const k = i * 4;
+      nrmD[k] = (nx / l * 0.5 + 0.5) * 255;
+      nrmD[k + 1] = (ny / l * 0.5 + 0.5) * 255;
+      nrmD[k + 2] = (1 / l * 0.5 + 0.5) * 255;
+    }
+  }
+
+  return {
+    hb,
+    color: toCanvas(colD, W, H),
+    normal: toCanvas(nrmD, W, H),
+    rough: toCanvas(rghD, W, H),
+    alpha: toCanvas(alpD, W, H),
+  };
 }
 
-function Plate({
-  text,
-  width,
-  height,
-  emboss,
-  bumpScale,
-  textSize,
-  condense,
-  scratches,
-  seed,
-}: Required<Omit<Props, "className">>) {
+function Plate({ text, width, height, relief, depth, irregular, scratches, seed }: Required<Omit<Props, "className">>) {
   const group = useRef<THREE.Group>(null);
   const light = useRef<THREE.PointLight>(null);
   const { viewport } = useThree();
@@ -212,44 +245,61 @@ function Plate({
   const W = TEX_W;
   const H = Math.round((TEX_W * height) / width);
 
-  const geometry = useMemo(() => makePlateGeometry(width, height), [width, height]);
-  const base = useMemo(() => buildBase(W, H, seed, scratches), [W, H, seed, scratches]);
+  const built = useMemo(
+    () => buildPlate(text, W, H, seed, irregular, scratches, relief),
+    [text, W, H, seed, irregular, scratches, relief]
+  );
 
-  const colorTex = useMemo(() => {
-    const t = new THREE.CanvasTexture(base.color);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 8;
-    return t;
-  }, [base]);
+  const tex = useMemo(() => {
+    const mk = (c: HTMLCanvasElement, srgb = false) => {
+      const t = new THREE.CanvasTexture(c);
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 8;
+      return t;
+    };
+    return {
+      color: mk(built.color, true),
+      normal: mk(built.normal),
+      rough: mk(built.rough),
+      alpha: mk(built.alpha),
+    };
+  }, [built]);
 
-  const roughTex = useMemo(() => {
-    const t = new THREE.CanvasTexture(base.rough);
-    t.anisotropy = 8;
-    return t;
-  }, [base]);
+  useEffect(
+    () => () => {
+      Object.values(tex).forEach((t) => t.dispose());
+    },
+    [tex]
+  );
 
-  const heightTex = useMemo(() => {
-    const c = makeCanvas(W, H);
-    const ctx = c.getContext("2d")!;
-    ctx.drawImage(base.height, 0, 0);
-    drawText(ctx, text, W, H, textSize, condense, emboss === "raised");
-    const t = new THREE.CanvasTexture(c);
-    t.anisotropy = 8;
-    return t;
-  }, [base, text, W, H, textSize, condense, emboss]);
+  const geometry = useMemo(() => {
+    const segX = 360;
+    const segY = Math.max(60, Math.round((segX * height) / width));
+    const g = new THREE.PlaneGeometry(width, height, segX, segY);
+    const pos = g.attributes.position;
+    const uv = g.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const px = Math.min(W - 1, Math.round(uv.getX(i) * (W - 1)));
+      const py = Math.min(H - 1, Math.round((1 - uv.getY(i)) * (H - 1)));
+      pos.setZ(i, built.hb[py * W + px] * depth);
+    }
+    pos.needsUpdate = true;
+    return g;
+  }, [width, height, W, H, built, depth]);
 
-  useEffect(() => () => colorTex.dispose(), [colorTex]);
-  useEffect(() => () => roughTex.dispose(), [roughTex]);
-  useEffect(() => () => heightTex.dispose(), [heightTex]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
-  const fit = Math.min(1, viewport.width / (width * 1.1), viewport.height / (height * 1.1));
+  const fit = Math.min(
+    (viewport.width * 0.94) / (width * 0.82),
+    (viewport.height * 0.92) / (height * 0.82)
+  );
 
   useFrame((state) => {
     const g = group.current;
     if (!g) return;
-    g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, state.pointer.x * 0.35, 0.06);
-    g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, -state.pointer.y * 0.25, 0.06);
+    const t = state.clock.elapsedTime;
+    g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, state.pointer.x * 0.28 + Math.sin(t * 0.5) * 0.05, 0.06);
+    g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, -state.pointer.y * 0.2 + Math.cos(t * 0.4) * 0.03, 0.06);
     if (light.current) {
       light.current.position.set(state.pointer.x * viewport.width * 0.5, state.pointer.y * viewport.height * 0.5, 2.5);
     }
@@ -257,17 +307,19 @@ function Plate({
 
   return (
     <>
-      <pointLight ref={light} intensity={40} decay={2} color="#ffffff" />
+      <pointLight ref={light} intensity={30} decay={2} color="#ffffff" />
       <group ref={group} scale={fit}>
         <mesh geometry={geometry}>
           <meshStandardMaterial
-            map={colorTex}
-            roughnessMap={roughTex}
+            map={tex.color}
+            normalMap={tex.normal}
+            roughnessMap={tex.rough}
+            alphaMap={tex.alpha}
+            alphaTest={0.5}
+            alphaToCoverage
             roughness={1}
             metalness={1}
-            bumpMap={heightTex}
-            bumpScale={bumpScale}
-            envMapIntensity={1.2}
+            envMapIntensity={1.4}
           />
         </mesh>
       </group>
@@ -277,12 +329,11 @@ function Plate({
 
 export default function MetalPlate3D({
   text,
-  width = 6,
-  height = 3.4,
-  emboss = "raised",
-  bumpScale = 2,
-  textSize = 0.12,
-  condense = 0.85,
+  width = 7.2,
+  height = 2.5,
+  irregular = 1,
+  relief = 1,
+  depth = 0.5,
   scratches = 1,
   seed = 7,
   className = "h-[600px] w-full",
@@ -292,19 +343,19 @@ export default function MetalPlate3D({
       <Canvas camera={{ position: [0, 0, 7], fov: 35 }} dpr={[1, 2]} gl={{ antialias: true }}>
         <color attach="background" args={["#000000"]} />
         <Environment resolution={512}>
-          <Lightformer form="rect" intensity={1.4} position={[0, 0, 9]} scale={[22, 14, 1]} />
-          <Lightformer form="rect" intensity={5} position={[-7, 4, 4]} scale={[3, 10, 1]} />
-          <Lightformer form="rect" intensity={5} position={[7, -3, 4]} scale={[2, 9, 1]} />
-          <Lightformer form="rect" intensity={3} position={[0, 8, 3]} scale={[16, 2, 1]} />
+          <Lightformer form="rect" intensity={0.25} position={[0, 0, 9]} scale={[24, 14, 1]} />
+          <Lightformer form="rect" intensity={9} position={[-6, 5, 4]} scale={[2.5, 9, 1]} />
+          <Lightformer form="rect" intensity={7} position={[7, -2, 4]} scale={[1.6, 8, 1]} />
+          <Lightformer form="rect" intensity={4} position={[0, 9, 2]} scale={[14, 1.5, 1]} />
+          <Lightformer form="circle" intensity={6} position={[3, 3, 6]} scale={2} />
         </Environment>
         <Plate
           text={text}
           width={width}
           height={height}
-          emboss={emboss}
-          bumpScale={bumpScale}
-          textSize={textSize}
-          condense={condense}
+          relief={relief}
+          depth={depth}
+          irregular={irregular}
           scratches={scratches}
           seed={seed}
         />
