@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed } from "next/font/google";
+import { Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const display = Barlow_Condensed({
+const display = Hanken_Grotesk({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
@@ -24,7 +23,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={display.variable}>
-      <body className="min-h-screen bg-black antialiased">{children}</body>
+      <body className="min-h-screen bg-black font-[family-name:var(--font-display)] text-neutral-200 antialiased">
+        {children}
+      </body>
     </html>
   );
 }

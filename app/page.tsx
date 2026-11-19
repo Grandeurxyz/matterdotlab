@@ -1,20 +1,30 @@
-"use client";
+import fs from "node:fs";
+import path from "node:path";
+import Hero from "./components/Hero";
+import Gallery from "./components/Gallery";
+import Nav from "./components/Nav";
 
-import { useState } from "react";
-import MetalPlate3D from "./components/MetalPlate3D";
+function getGalleryImages(): string[] {
+  const dir = path.join(process.cwd(), "public", "gallery");
+  try {
+    return fs
+      .readdirSync(dir)
+      .filter((f) => /\.(png|jpe?g|webp|avif|gif)$/i.test(f))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map((f) => `/gallery/${encodeURIComponent(f)}`);
+  } catch {
+    return [];
+  }
+}
 
 export default function Page() {
-  const [text, setText] = useState("ByGrandeur");
+  const images = getGalleryImages();
 
   return (
-    <main className="relative min-h-screen bg-black">
-      <MetalPlate3D text={text} className="h-screen w-full" />
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={2}
-        className="absolute bottom-8 left-1/2 w-72 -translate-x-1/2 resize-none rounded-md border border-neutral-700 bg-neutral-900 p-3 text-center text-sm uppercase tracking-widest text-neutral-200 outline-none focus:border-neutral-400"
-      />
+    <main className="bg-black">
+      <Hero />
+      <Gallery images={images} />
+        <Nav />
     </main>
   );
 }

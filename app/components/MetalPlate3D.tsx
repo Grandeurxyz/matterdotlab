@@ -41,7 +41,7 @@ function addNoise(ctx: CanvasRenderingContext2D, w: number, h: number, amp: numb
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
-    const n = (rand() - 0.5) * amp;
+    const n = (rand() - 0.85) * amp;
     d[i] += n;
     d[i + 1] += n;
     d[i + 2] += n;
