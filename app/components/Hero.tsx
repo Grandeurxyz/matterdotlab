@@ -1,11 +1,10 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
-import MetalPlate3D from "./MetalPlate3D";
+import MetalText from "./MetalText";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const PLATE_TEXT = "ByGrandeur";
-
+const BRAND = "ByGrandeur";
 const INTRO = "An independent creative studio making things at the intersection of art, design and code.";
 
 export default function Hero() {
@@ -17,22 +16,24 @@ export default function Hero() {
     <section id="home" className="sticky top-0 z-0 h-[100svh] w-full overflow-hidden bg-black">
       <motion.div
         style={{ scale, opacity }}
-        className="flex h-full w-full flex-col px-5 pb-24 pt-6 md:px-10 md:pb-28 md:pt-8"
+        className="flex h-full w-full flex-col justify-between px-3 pb-24 pt-4 md:px-6 md:pb-8 md:pt-6"
       >
-        <div className="relative min-h-0 flex-1">
-          <MetalPlate3D text={PLATE_TEXT} className="absolute inset-0" />
-        </div>
-
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: EASE, delay: 0.1 }}
+        >
+          <MetalText text={BRAND} />
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, ease: EASE, delay: 0.5 }}
-          className="mx-auto mt-4 w-full max-w-[1400px] md:mt-8"
+          className="max-w-[34rem] px-1 text-base leading-snug tracking-tight text-neutral-100 md:text-2xl"
         >
-          <p className="max-w-[34rem] text-base leading-snug tracking-tight text-neutral-100 md:text-2xl">
-            {INTRO}
-          </p>
-        </motion.div>
+          {INTRO}
+        </motion.p>
       </motion.div>
     </section>
   );

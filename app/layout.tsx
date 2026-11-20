@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter_Tight } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 import Nav from "./components/Nav";
 
-const inter = Inter_Tight({
+const sans = Manrope({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
@@ -23,7 +23,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${inter.className}`}>
+    <html lang="en" className={`${sans.variable} ${sans.className}`}>
       <body className="min-h-screen bg-black text-neutral-200 antialiased">
         {children}
         <Nav />
