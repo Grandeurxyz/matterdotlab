@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const TITLE = "INFO";
+const YEAR = 2026;
 
 const INTRO =
   "Grandeur is built around the simple joy of making things. A space to explore ideas, experiment across mediums and bring interesting things to life.";
@@ -145,7 +146,7 @@ export default function Info() {
         </div>
 
         <div className="mt-16 flex items-center justify-between pb-28 text-xs tracking-tight text-neutral-600 md:mt-24">
-          <span>© {new Date().getFullYear()} ByGrandeur</span>
+          <span>© {YEAR} ByGrandeur</span>
           <span>Independent studio</span>
         </div>
       </div>
