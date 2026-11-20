@@ -8,8 +8,6 @@ const PLATE_TEXT = "ByGrandeur";
 
 const INTRO = "An independent creative studio making things at the intersection of art, design and code.";
 
-const FOCUS = ["Visual & Graphic Design", "Art & Illustration", "3D", "Code & Digital Interactions"];
-
 export default function Hero() {
   const { scrollY } = useScroll();
   const scale = useTransform(scrollY, [0, 800], [1, 0.92]);
@@ -29,20 +27,11 @@ export default function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, ease: EASE, delay: 0.5 }}
-          className="mx-auto mt-4 grid w-full max-w-[1400px] grid-cols-[1.2fr_1fr] gap-5 md:mt-8 md:flex md:items-start md:justify-between md:gap-10"
+          className="mx-auto mt-4 w-full max-w-[1400px] md:mt-8"
         >
           <p className="max-w-[34rem] text-base leading-snug tracking-tight text-neutral-100 md:text-2xl">
             {INTRO}
           </p>
-
-          <div className="text-xs leading-relaxed tracking-tight text-neutral-300 md:text-lg md:leading-snug">
-            <p className="mb-1 text-neutral-100">Focus</p>
-            <ul>
-              {FOCUS.map((item) => (
-                <li key={item}>- {item}</li>
-              ))}
-            </ul>
-          </div>
         </motion.div>
       </motion.div>
     </section>

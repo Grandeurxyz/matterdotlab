@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import Hero from "./components/Hero";
 import Gallery from "./components/Gallery";
-import Nav from "./components/Nav";
 
 function getGalleryImages(): string[] {
   const dir = path.join(process.cwd(), "public", "gallery");
@@ -24,7 +23,6 @@ export default function Page() {
     <main className="bg-black">
       <Hero />
       <Gallery images={images} />
-        <Nav />
     </main>
   );
 }

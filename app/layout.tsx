@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight } from "next/font/google";
 import "./globals.css";
+import Nav from "./components/Nav";
 
 const inter = Inter_Tight({
   subsets: ["latin"],
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${inter.className}`}>
       <body className="min-h-screen bg-black text-neutral-200 antialiased">
         {children}
+        <Nav />
       </body>
     </html>
   );

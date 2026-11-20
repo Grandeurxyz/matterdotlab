@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const TITLE = "Fragments";
+const TITLE = "Fragment";
 
 export default function Gallery({ images }: { images: string[] }) {
   const reduce = useReducedMotion();
@@ -47,7 +47,7 @@ export default function Gallery({ images }: { images: string[] }) {
   if (images.length === 0) return null;
 
   return (
-    <section className="relative z-10 rounded-t-[2.5rem] bg-black px-4 pb-24 pt-32 shadow-[0_-30px_80px_rgba(0,0,0,0.9)] md:px-10">
+    <section id="foundry" className="relative z-10 rounded-t-[2.5rem] bg-black px-4 pb-24 pt-32 shadow-[0_-30px_80px_rgba(0,0,0,0.9)] md:px-10">
       <div className="mx-auto mb-16 max-w-6xl md:mb-24">
         <motion.div
           initial={reduce ? false : { opacity: 0 }}
@@ -66,7 +66,7 @@ export default function Gallery({ images }: { images: string[] }) {
           viewport={{ once: false, amount: 0.6 }}
           transition={{ staggerChildren: 0.05 }}
           aria-label={TITLE}
-          className="flex overflow-hidden font-[family-name:var(--font-display)] text-6xl font-semibold uppercase leading-[1.05] tracking-wide text-neutral-200 md:text-8xl"
+          className="flex overflow-hidden font-[family-name:var(--font-display)] text-6xl font-semibold leading-[1.05] tracking-wide text-neutral-200 md:text-8xl"
         >
           {TITLE.split("").map((ch, i) => (
             <motion.span
